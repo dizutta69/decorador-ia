@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Decorador de Interiores IA</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 20px auto; padding: 15px; background-color: #f9f9f9; color: #333; }
+        h1 { color: #222; text-align: center; }
+        .workflow-step { background-color: #fff; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 25px; }
+        textarea { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #ddd; box-sizing: border-box; margin-top: 10px; }
+        button { width: 100%; padding: 15px; background-color: #007aff; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; transition: background-color 0.2s; margin-top: 10px; }
+        button:disabled { background-color: #ccc; cursor: not-allowed; }
+        .image-box { text-align: center; }
+        .image-box.clickable { cursor: pointer; }
+        .image-box.clickable:hover img { box-shadow: 0 6px 16px rgba(0,122,255,0.2); }
+        img { width: 100%; height: auto; border-radius: 8px; aspect-ratio: 1 / 1; object-fit: cover; background-color: #eee; transition: all 0.2s ease-in-out; }
+        h3 { text-align: center; margin-bottom: 10px; color: #444; }
+        #loader { display: none; text-align: center; padding: 20px; font-weight: bold; color: #007aff; }
+        .action-buttons { margin-top: 15px; display: none; gap: 10px; justify-content: center; flex-wrap: wrap; }
+        .action-buttons button, .action-buttons a { padding: 8px 16px; font-size: 14px; text-decoration: none; display: inline-block; flex-grow: 1; }
+        .slider-container { margin-top: 10px; }
+        .slider-container label { display: block; margin-bottom: 5px; color: #555; font-weight: 500;}
+        .slider-container input { width: calc(100% - 50px); vertical-align: middle; }
+        .slider-container span { font-weight: bold; color: #007aff; vertical-align: middle; margin-left: 10px; }
+        #carousel-wrapper { display: none; }
+        #results-carousel { display: flex; gap: 10px; overflow-x: auto; padding: 10px 0; }
+        .carousel-section { text-align: center; }
+        .carousel-section h4 { color: #555; margin-bottom: 5px; }
+        #results-carousel img, #initial-thumb-container img { width: 80px; height: 80px; border-radius: 6px; cursor: pointer; border: 3px solid transparent; }
+        #results-carousel img.selected, #initial-thumb-container img.selected { border-color: #007aff; }
+        #initial-thumb-container { border: 2px dashed #ccc; padding: 5px; border-radius: 8px; }
+        #set-initial-btn { width: 100%; margin-top: 10px; }
+    </style>
+</head>
+<body>
+    <h1>Decorador de Interiores IA</h1>
+
+    <!-- Controles de Generación -->
+    <div class="workflow-step">
+        <h3>Describe tu Idea</h3>
+        <textarea id="promptInput" rows="3" placeholder="Ej: Un salón estilo bohemio, con muchas plantas..."></textarea>
+        <div class="slider-container">
+            <label for="strengthSlider">Fidelidad (Menos = Más Cambios):</label>
+            <input type="range" id="strengthSlider" min="0.1" max="1.0" value="0.8" step="0.05">
+            <span id="strengthValue">0.8</span>
+        </div>
+        <button id="generateBtn">Generar Idea</button>
+    </div>
+
+    <div id="loader">✨ Procesando tu idea... ✨</div>
+
+    <!-- Visor Principal de Imagen -->
+    <div class="workflow-step">
+        <div class="image-box clickable" id="uploadBox">
+            <img id="mainImage" src="https://placehold.co/600x600/eee/ccc?text=Haz+clic+para+subir" alt="Imagen Principal">
+        </div>
+        <input type="file" id="imageUploader" accept="image/*" style="display: none;">
+        <div class="action-buttons" id="resultActions">
+            <button id="upscaleBtn">Mejorar Resolución</button>
+            <a id="downloadLink" href="#" download="diseño_ia.png"><button>Descargar</button></a>
+        </div>
+    </div>
+
+    <!-- Carrusel de Resultados -->
+    <div class="workflow-step" id="carousel-wrapper" style="display: none;">
+        <div style="display: flex; gap: 20px; align-items: flex-start;">
+            <div class="carousel-section">
+                <h4>Imagen Inicial</h4>
+                <div id="initial-thumb-container"></div>
+            </div>
+            <div class="carousel-section" style="flex-grow: 1;">
+                <h4>Resultados</h4>
+                <div id="results-carousel"></div>
+            </div>
+        </div>
+        <button id="set-initial-btn" title="Usar resultado como nueva imagen inicial">Usar como Inicial</button>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
