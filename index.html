@@ -1,82 +1,112 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Decorador de Interiores IA</title>
-    <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 20px auto; padding: 15px; background-color: #f9f9f9; color: #333; }
-        h1 { color: #222; text-align: center; }
-        .workflow-step { background-color: #fff; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 25px; }
-        textarea { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #ddd; box-sizing: border-box; margin-top: 10px; }
-        button { width: 100%; padding: 15px; background-color: #007aff; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; transition: background-color 0.2s; margin-top: 10px; }
-        button:disabled { background-color: #ccc; cursor: not-allowed; }
-        .image-box { text-align: center; }
-        .image-box.clickable { cursor: pointer; }
-        .image-box.clickable:hover img { box-shadow: 0 6px 16px rgba(0,122,255,0.2); }
-        img { width: 100%; height: auto; border-radius: 8px; aspect-ratio: 1 / 1; object-fit: cover; background-color: #eee; transition: all 0.2s ease-in-out; }
-        h3 { text-align: center; margin-bottom: 10px; color: #444; }
-        #loader { display: none; text-align: center; padding: 20px; font-weight: bold; color: #007aff; }
-        .action-buttons { margin-top: 15px; display: none; gap: 10px; justify-content: center; flex-wrap: wrap; }
-        .action-buttons button, .action-buttons a { padding: 8px 16px; font-size: 14px; text-decoration: none; display: inline-block; flex-grow: 1; }
-        .slider-container { margin-top: 10px; }
-        .slider-container label { display: block; margin-bottom: 5px; color: #555; font-weight: 500;}
-        .slider-container input { width: calc(100% - 50px); vertical-align: middle; }
-        .slider-container span { font-weight: bold; color: #007aff; vertical-align: middle; margin-left: 10px; }
-        #carousel-wrapper { display: none; }
-        #results-carousel { display: flex; gap: 10px; overflow-x: auto; padding: 10px 0; }
-        .carousel-section { text-align: center; }
-        .carousel-section h4 { color: #555; margin-bottom: 5px; }
-        #results-carousel img, #initial-thumb-container img { width: 80px; height: 80px; border-radius: 6px; cursor: pointer; border: 3px solid transparent; }
-        #results-carousel img.selected, #initial-thumb-container img.selected { border-color: #007aff; }
-        #initial-thumb-container { border: 2px dashed #ccc; padding: 5px; border-radius: 8px; }
-        #set-initial-btn { width: 100%; margin-top: 10px; }
-    </style>
-</head>
-<body>
-    <h1>Decorador de Interiores IA</h1>
+import os
+import base64
+from io import BytesIO
+from PIL import Image
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+from dotenv import load_dotenv
+import replicate
 
-    <!-- Controles de Generación -->
-    <div class="workflow-step">
-        <h3>Describe tu Idea</h3>
-        <textarea id="promptInput" rows="3" placeholder="Ej: Un salón estilo bohemio, con muchas plantas..."></textarea>
-        <div class="slider-container">
-            <label for="strengthSlider">Fidelidad (Menos = Más Cambios):</label>
-            <input type="range" id="strengthSlider" min="0.1" max="1.0" value="0.8" step="0.05">
-            <span id="strengthValue">0.8</span>
-        </div>
-        <button id="generateBtn">Generar Idea</button>
-    </div>
+# Cargar variables de entorno desde el archivo .env
+load_dotenv()
 
-    <div id="loader">✨ Procesando tu idea... ✨</div>
+# Inicializar la aplicación Flask
+app = Flask(__name__)
+CORS(app)
 
-    <!-- Visor Principal de Imagen -->
-    <div class="workflow-step">
-        <div class="image-box clickable" id="uploadBox">
-            <img id="mainImage" src="https://placehold.co/600x600/eee/ccc?text=Haz+clic+para+subir" alt="Imagen Principal">
-        </div>
-        <input type="file" id="imageUploader" accept="image/*" style="display: none;">
-        <div class="action-buttons" id="resultActions">
-            <button id="upscaleBtn">Mejorar Resolución</button>
-            <a id="downloadLink" href="#" download="diseño_ia.png"><button>Descargar</button></a>
-        </div>
-    </div>
+# Configurar el cliente de Replicate
+try:
+    REPLICATE_API_TOKEN = os.environ["REPLICATE_API_TOKEN"]
+    client = replicate.Client(api_token=REPLICATE_API_TOKEN)
+except KeyError:
+    print("‼️ ERROR: La variable de entorno REPLICATE_API_TOKEN no está definida.")
+    print("Asegúrate de crear un archivo .env y añadir tu token.")
+    exit()
 
-    <!-- Carrusel de Resultados -->
-    <div class="workflow-step" id="carousel-wrapper" style="display: none;">
-        <div style="display: flex; gap: 20px; align-items: flex-start;">
-            <div class="carousel-section">
-                <h4>Imagen Inicial</h4>
-                <div id="initial-thumb-container"></div>
-            </div>
-            <div class="carousel-section" style="flex-grow: 1;">
-                <h4>Resultados</h4>
-                <div id="results-carousel"></div>
-            </div>
-        </div>
-        <button id="set-initial-btn" title="Usar resultado como nueva imagen inicial">Usar como Inicial</button>
-    </div>
+def process_image_to_rgb_base64(image_data_uri):
+    """
+    Procesa una imagen en formato Data URI para asegurar que esté en formato RGB (sin transparencia)
+    y la devuelve como un Data URI limpio en formato JPEG.
+    """
+    header, encoded = image_data_uri.split(",", 1)
+    decoded_data = base64.b64decode(encoded)
+    image = Image.open(BytesIO(decoded_data))
+    rgb_image = image.convert("RGB")
+    buffered = BytesIO()
+    rgb_image.save(buffered, format="JPEG")
+    img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
+    return f"data:image/jpeg;base64,{img_str}"
 
-    <script src="app.js"></script>
-</body>
-</html>
+@app.route('/api/redesign', methods=['POST'])
+def redesign_space():
+    """
+    Endpoint que genera el diseño base con adirik/interior-design.
+    Ahora puede recibir una imagen base64 o una URL de una imagen previa.
+    """
+    try:
+        data = request.get_json()
+        image_input = data.get('image') # Puede ser base64 o una URL
+        prompt = data.get('prompt')
+        prompt_strength = data.get('strength', 0.8)
+
+        if not image_input or not prompt:
+            return jsonify({'error': 'Se requiere una imagen y un prompt.'}), 400
+
+        # Si la imagen es un data URI (base64), la procesamos. Si es una URL, la usamos directamente.
+        if image_input.startswith('data:image'):
+            print("🔧 Procesando imagen base64 para asegurar compatibilidad...")
+            clean_image_input = process_image_to_rgb_base64(image_input)
+            print("✅ Imagen procesada.")
+        else:
+            print("ℹ️ Usando URL de imagen existente como entrada.")
+            clean_image_input = image_input
+
+        print(f"🚀 Enviando petición a adirik/interior-design...")
+        design_output = client.run(
+            "adirik/interior-design:76604baddc85b1b4616e1c6475eca080da339c8875bd4996705440484a6eac38",
+            input={
+                "image": clean_image_input,
+                "prompt": prompt,
+                "negative_prompt": "lowres, watermark, banner, logo, contact information, text, blurry, ugly, disfigured, deformed",
+                "prompt_strength": prompt_strength,
+            }
+        )
+
+        new_image_url = str(design_output)
+        print(f"✅ ¡Diseño generado! URL: {new_image_url}")
+        return jsonify({'newImage': new_image_url})
+
+    except Exception as e:
+        print(f"❌ Error durante la generación del diseño: {e}")
+        return jsonify({'error': f'Hubo un error en el servidor: {e}'}), 500
+
+@app.route('/api/upscale', methods=['POST'])
+def upscale_image():
+    """
+    Endpoint que mejora la resolución de una imagen generada.
+    """
+    try:
+        data = request.get_json()
+        image_url = data.get('imageUrl')
+
+        if not image_url:
+            return jsonify({'error': 'Se requiere la URL de la imagen.'}), 400
+
+        print("🚀 Mejorando la resolución de la imagen...")
+        upscaled_output = client.run(
+            "nightmareai/real-esrgan:f121d640bd286e1fdc67f9799164c1d5be36ff74576ee11c803ae5b665dd46aa",
+            input={
+                "image": image_url,
+                "scale": 4, # Escalar la imagen 4 veces
+            }
+        )
+        final_image_url = str(upscaled_output)
+        print(f"✅ ¡Resolución mejorada! URL: {final_image_url}")
+        return jsonify({'newImage': final_image_url})
+
+    except Exception as e:
+        print(f"❌ Error durante la mejora de resolución: {e}")
+        return jsonify({'error': f'Hubo un error en el servidor: {e}'}), 500
+
+if __name__ == '__main__':
+    app.run(debug=True, port=5001)
